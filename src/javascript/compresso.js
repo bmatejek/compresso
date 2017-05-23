@@ -377,30 +377,6 @@ COMPRESSO.Decompress = function(bytes) {
   // decode the last pieces of information
   decompressed_data = COMPRESSO.DecodeIndeterminateLocations(boundaries, decompressed_data, locations, zres, yres, xres);
 
-  var canvas = document.createElement("canvas");
-  canvas.width = xres;
-  canvas.height = yres;
-  var ctx = canvas.getContext("2d");
-
-  var iz = 0;
-  for (var ix = 0; ix < xres; ++ix) {
-  for (var iy = 0; iy < yres; ++iy) {
-    component = decompressed_data[IndicesToIndex(ix, iy, iz)];
-
-    if (true) {
-      red = (Math.trunc(107 * component) % 700) % 255;
-      green = (Math.trunc(509 * component) % 900) % 255;
-      blue = (Math.trunc(200 * component) % 777) % 255;
-      
-      ctx.fillStyle = 'rgb(' + red + ', ' + green + ', ' + blue + ')';
-      ctx.fillRect(ix, iy, ix + 1, iy + 1);
-    }
-  }
-  }
-
-  var img = document.createElement("img");
-  img.src = canvas.toDataURL("image/png");
-  document.body.appendChild(img);
-
-  return decompressed_data;
+  // return the dimensions and the linear array of data
+  return {zres : zres, yres : yres, xres : xres, decompressed_data : decompressed_data};
 };
