@@ -14,31 +14,31 @@ var grid_size = -1;
 function IndicesToIndex(ix, iy, iz)
 {
   return iz * sheet_size + iy * row_size + ix;
-}
+};
 
 
 
-class UnionFindElement {
-  constructor(label) {
-    this.label = label;
-    this.parent = this;
-    this.rank = 0;
-  }
-}
-
-
-function Find(x)
+COMPRESSO.UnionFindElement = function(label)
 {
-  if (x.parent != x) x.parent = Find(x.parent);
-  return x.parent;
-}
+  this.label = label;
+  this.parent = this;
+  this.rank = 0;
+};
 
 
 
-function Union(x, y)
+COMPRESSO.UnionFindElement.prototype.Find = function()
 {
-  xroot = Find(x);
-  yroot = Find(y);
+  if (this.parent != this) this.parent = this.parent.Find();
+  return this.parent;
+};
+
+
+
+COMPRESSO.UnionFindElement.prototype.Union = function(y)
+{
+  xroot = this.Find();
+  yroot = y.Find();
 
   if (xroot == yroot) return;
 
@@ -52,7 +52,7 @@ function Union(x, y)
     yroot.parent = xroot;
     xroot.rank = xroot.rank + 1;
   }
-}
+};
 
 
 
@@ -122,7 +122,7 @@ COMPRESSO.DecodeBoundaries = function(boundary_data, values_high, values_low, zr
   }
 
   return boundaries;
-}
+};
 
 
 
@@ -161,7 +161,7 @@ COMPRESSO.ConnectedComponents = function(boundaries, zres, yres, xres)
           components[iv] = curlab;
 
           // add to union find structure
-          union_find.push(new UnionFindElement(0));
+          union_find.push(new COMPRESSO.UnionFindElement(0));
 
           // update the next label
           curlab++;
@@ -179,7 +179,7 @@ COMPRESSO.ConnectedComponents = function(boundaries, zres, yres, xres)
             components[iv] = Math.min(neighbor_labels[0], neighbor_labels[1]);
 
             // set the equivalence relationship
-            Union(union_find[neighbor_labels[0] - 1], union_find[neighbor_labels[1] - 1]);
+            union_find[neighbor_labels[0] - 1].Union(union_find[neighbor_labels[1] - 1]);
           }
         }
       }
@@ -196,7 +196,7 @@ COMPRESSO.ConnectedComponents = function(boundaries, zres, yres, xres)
         if (boundaries[iv]) continue;
 
         // get the parent for this component
-        comp = Find(union_find[components[iv] - 1]);
+        comp = union_find[components[iv] - 1].Find();
         if (!comp.label) {
           comp.label = curlab;
           curlab++;
@@ -208,7 +208,7 @@ COMPRESSO.ConnectedComponents = function(boundaries, zres, yres, xres)
   }
 
   return components;
-}
+};
 
 
 
@@ -241,7 +241,7 @@ COMPRESSO.IDReverseMapping = function(components, ids, zres, yres, xres)
   }
 
   return decompressed_data;
-}
+};
 
 
 COMPRESSO.DecodeIndeterminateLocations = function(boundaries, decompressed_data, locations, zres, yres, xres)
@@ -280,7 +280,7 @@ COMPRESSO.DecodeIndeterminateLocations = function(boundaries, decompressed_data,
   }  
 
   return decompressed_data;
-}
+};
 
 
 /*
