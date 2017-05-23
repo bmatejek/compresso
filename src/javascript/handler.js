@@ -26,8 +26,15 @@ SEGMENTATION.File.prototype.onLoad = function(e) {
 
         var bytes = new Uint32Array(buffer);
 
+        // get the time
+        var start_time = (new Date()).getTime();
+
         // call COMPRESSO algorithm
         var data = COMPRESSO.Decompress(bytes);
+
+        // output the time taken
+        total_time = ((new Date()).getTime() - start_time) / 1000
+        console.log((data.zres * data.yres * data.xres * 8) / total_time / Math.pow(2, 20));
 
         var canvas = document.createElement("canvas");
         canvas.width = data.xres;

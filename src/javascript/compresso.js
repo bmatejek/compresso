@@ -10,7 +10,6 @@ var grid_size = -1;
 
 
 
-
 function IndicesToIndex(ix, iy, iz)
 {
   return iz * sheet_size + iy * row_size + ix;
@@ -75,7 +74,7 @@ COMPRESSO.DecodeBoundaries = function(boundary_data, values_high, values_low, zr
   var boundaries = new Uint8Array(grid_size);
   for (var iv = 0; iv < grid_size; ++iv) 
     boundaries[iv] = 0;
-  /* TODO is this initialization needed */
+  // TODO is this initialization needed 
 
   // iterate over every voxel
   for (var iz = 0; iz < zres; ++iz) {
@@ -84,9 +83,9 @@ COMPRESSO.DecodeBoundaries = function(boundary_data, values_high, values_low, zr
         var iv = IndicesToIndex(ix, iy, iz);
 
         // get the block for this voxel
-        var zblock = parseInt(iz / zstep);
-        var yblock = parseInt(iy / ystep);
-        var xblock = parseInt(ix / xstep);
+        var zblock = parseInt(iz / zstep, 10);
+        var yblock = parseInt(iy / ystep, 10);
+        var xblock = parseInt(ix / xstep, 10);
 
         // find the offset
         var zoffset = iz % zstep;
@@ -283,9 +282,7 @@ COMPRESSO.DecodeIndeterminateLocations = function(boundaries, decompressed_data,
 };
 
 
-/*
- * Decompression algorithm takes in an Uint32Array
- */
+// Decompression algorithm takes in an Uint32Array
 COMPRESSO.Decompress = function(bytes) {
   // create arrays for the header
   const header_size = 10;
@@ -357,7 +354,7 @@ COMPRESSO.Decompress = function(bytes) {
   bytes = bytes.slice(2 * locations_size);
 
   // get all of the boundary data
-  /* TODO handle boundary data of various sizes */
+  // TODO handle boundary data of various sizes 
   var boundary_data = bytes;
 
   var zero_counter = 0;
