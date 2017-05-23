@@ -427,7 +427,7 @@ COMPRESSO.File.prototype.readSuperblock = function(buffer) {
   bytes = bytes.slice(2 * values_size);
 
   // get all of the locations where indeterminate values occur
-  var locations = new Float64Arra(locations_size);
+  var locations = new Float64Array(locations_size);
   for (var iv = 0; iv < locations_size; ++iv) {
     locations[iv] = bytes[2 * iv + 1] * Math.pow(2, 32) + bytes[2 * iv];
   }
