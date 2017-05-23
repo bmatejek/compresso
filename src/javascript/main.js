@@ -31,5 +31,5 @@ function onDrop(e) {
   }
 
   // create a new compresso file
-  F = new COMPRESSO.File(files[0]);
+  F = new SEGMENTATION.File(files[0]);
 };

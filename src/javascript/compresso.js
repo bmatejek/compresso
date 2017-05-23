@@ -1,80 +1,5 @@
 var COMPRESSO = COMPRESSO || {};
 
-COMPRESSO.STATES = {
-  SUPERBLOCK: [0, -1, 'readSuperblock'],
-};
-
-COMPRESSO.VERBOSE = true;
-
-COMPRESSO.File = function(file) {
-  
-  this._file = file;
-
-  /**
-   * Since we slice the file, we need an
-   * attached file reader.
-   */
-  this._reader = new FileReader();
-  this._reader.onerror = this.onError.bind(this);
-  this._reader.onloadend = this.onLoad.bind(this);
-
-  this._state = parseInt(COMPRESSO.STATES.SUPERBLOCK);
-
-  // // start reading this file
-  this.readNext();
-};
-
-/**
- * The onError callback.
- */
-COMPRESSO.File.prototype.onError = function(e) {
-
-  throw new Error(e.target.error.code);
-
-};
-
-/**
- * The onLoad callback (really the onLoadEnd).
- */
-COMPRESSO.File.prototype.onLoad = function(e) {
-
-  if (e.target.readyState == FileReader.DONE) {
-
-    // we read an array buffer
-    var bytes_buffer = e.target.result;
-
-    // and execute the callback by passing the buffer
-    var current_state = this._state;
-    var callback = this.getState(current_state)[2];
-    eval('this.'+callback+'(bytes_buffer);'); // DANGER
-
-    // and read the next one..
-    this._state += 1;
-    this.readNext();
-
-  }
-
-};
-
-COMPRESSO.File.prototype.getState = function(which) {
-
-  return COMPRESSO.STATES[Object.keys(COMPRESSO.STATES)[which]];
-
-};
-
-COMPRESSO.File.prototype.readNext = function() {
-
-  var current_state = this._state;
-
-  // grab start and end bytes
-  var start_byte = this.getState(current_state)[0];
-  var end_byte = this.getState(current_state)[1];
-
-  var blob = this._file;
-  this._reader.readAsArrayBuffer(blob);
-
-};
-
 
 
 // size of various dimensions
@@ -85,6 +10,7 @@ var grid_size = -1;
 
 
 
+
 function IndicesToIndex(ix, iy, iz)
 {
   return iz * sheet_size + iy * row_size + ix;
@@ -92,7 +18,45 @@ function IndicesToIndex(ix, iy, iz)
 
 
 
-function DecodeBoundaries(boundary_data, values_high, values_low, zres, yres, xres, zstep, ystep, xstep)
+class UnionFindElement {
+  constructor(label) {
+    this.label = label;
+    this.parent = this;
+    this.rank = 0;
+  }
+}
+
+
+function Find(x)
+{
+  if (x.parent != x) x.parent = Find(x.parent);
+  return x.parent;
+}
+
+
+
+function Union(x, y)
+{
+  xroot = Find(x);
+  yroot = Find(y);
+
+  if (xroot == yroot) return;
+
+  if (xroot.rank < yroot.rank) {
+    xroot.parent = yroot;
+  }
+  else if (xroot.rank > yroot.rank) {
+    yroot.parent = xroot;
+  }
+  else {
+    yroot.parent = xroot;
+    xroot.rank = xroot.rank + 1;
+  }
+}
+
+
+
+COMPRESSO.DecodeBoundaries = function(boundary_data, values_high, values_low, zres, yres, xres, zstep, ystep, xstep)
 {
   var nzblocks = Math.trunc(Math.ceil(zres / zstep) + 0.5);
   var nyblocks = Math.trunc(Math.ceil(yres / ystep) + 0.5);
@@ -162,45 +126,7 @@ function DecodeBoundaries(boundary_data, values_high, values_low, zres, yres, xr
 
 
 
-class UnionFindElement {
-  constructor(label) {
-    this.label = label;
-    this.parent = this;
-    this.rank = 0;
-  }
-}
-
-
-function Find(x)
-{
-  if (x.parent != x) x.parent = Find(x.parent);
-  return x.parent;
-}
-
-
-
-function Union(x, y)
-{
-  xroot = Find(x);
-  yroot = Find(y);
-
-  if (xroot == yroot) return;
-
-  if (xroot.rank < yroot.rank) {
-    xroot.parent = yroot;
-  }
-  else if (xroot.rank > yroot.rank) {
-    yroot.parent = xroot;
-  }
-  else {
-    yroot.parent = xroot;
-    xroot.rank = xroot.rank + 1;
-  }
-}
-
-
-
-function ConnectedComponents(boundaries, zres, yres, xres)
+COMPRESSO.ConnectedComponents = function(boundaries, zres, yres, xres)
 {
   components = new Float64Array(grid_size);
   for (var iv = 0; iv < grid_size; ++iv) {
@@ -286,7 +212,7 @@ function ConnectedComponents(boundaries, zres, yres, xres)
 
 
 
-function IDReverseMapping(components, ids, zres, yres, xres)
+COMPRESSO.IDReverseMapping = function(components, ids, zres, yres, xres)
 {
   var decompressed_data = new Float64Array(grid_size);
   for (var iv = 0; iv < grid_size; ++iv)
@@ -318,7 +244,7 @@ function IDReverseMapping(components, ids, zres, yres, xres)
 }
 
 
-function DecodeIndeterminateLocations(boundaries, decompressed_data, locations, zres, yres, xres)
+COMPRESSO.DecodeIndeterminateLocations = function(boundaries, decompressed_data, locations, zres, yres, xres)
 {
   var iv = 0;
   var index = 0;
@@ -358,13 +284,9 @@ function DecodeIndeterminateLocations(boundaries, decompressed_data, locations, 
 
 
 /*
- * Specs
+ * Decompression algorithm takes in an Uint32Array
  */
-COMPRESSO.File.prototype.readSuperblock = function(buffer) {
-  
-  // convert the buffer into bytes
-  var bytes = new Uint32Array(buffer);
-
+COMPRESSO.Decompress = function(bytes) {
   // create arrays for the header
   const header_size = 10;
   var header_low = new Uint32Array(header_size);
@@ -444,15 +366,16 @@ COMPRESSO.File.prototype.readSuperblock = function(buffer) {
   }
 
   // decode the boundaries
-  boundaries = DecodeBoundaries(boundary_data, values_high, values_low, zres, yres, xres, zstep, ystep, xstep);
+  boundaries = COMPRESSO.DecodeBoundaries(boundary_data, values_high, values_low, zres, yres, xres, zstep, ystep, xstep);
 
   // get the components from a connected components algorithm
-  components = ConnectedComponents(boundaries, zres, yres, xres);
+  components = COMPRESSO.ConnectedComponents(boundaries, zres, yres, xres);
 
   // map the components to ids
-  decompressed_data = IDReverseMapping(components, ids, zres, yres, xres);
+  decompressed_data = COMPRESSO.IDReverseMapping(components, ids, zres, yres, xres);
 
-  decompressed_data = DecodeIndeterminateLocations(boundaries, decompressed_data, locations, zres, yres, xres);
+  // decode the last pieces of information
+  decompressed_data = COMPRESSO.DecodeIndeterminateLocations(boundaries, decompressed_data, locations, zres, yres, xres);
 
   var canvas = document.createElement("canvas");
   canvas.width = xres;
@@ -461,21 +384,23 @@ COMPRESSO.File.prototype.readSuperblock = function(buffer) {
 
   var iz = 0;
   for (var ix = 0; ix < xres; ++ix) {
-    for (var iy = 0; iy < yres; ++iy) {
-      component = decompressed_data[IndicesToIndex(ix, iy, iz)];
+  for (var iy = 0; iy < yres; ++iy) {
+    component = decompressed_data[IndicesToIndex(ix, iy, iz)];
 
-      if (true) {
-        red = (Math.trunc(107 * component) % 700) % 255;
-        green = (Math.trunc(509 * component) % 900) % 255;
-        blue = (Math.trunc(200 * component) % 777) % 255;
-        
-        ctx.fillStyle = 'rgb(' + red + ', ' + green + ', ' + blue + ')';
-        ctx.fillRect(ix, iy, ix + 1, iy + 1);
-      }
+    if (true) {
+      red = (Math.trunc(107 * component) % 700) % 255;
+      green = (Math.trunc(509 * component) % 900) % 255;
+      blue = (Math.trunc(200 * component) % 777) % 255;
+      
+      ctx.fillStyle = 'rgb(' + red + ', ' + green + ', ' + blue + ')';
+      ctx.fillRect(ix, iy, ix + 1, iy + 1);
     }
+  }
   }
 
   var img = document.createElement("img");
   img.src = canvas.toDataURL("image/png");
   document.body.appendChild(img);
+
+  return decompressed_data;
 };
