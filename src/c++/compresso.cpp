@@ -374,8 +374,39 @@ EncodeIndeterminateLocations(bool *boundaries, unsigned long *data, long res[3])
 
 
 
+static unsigned long
+WriteUint32(unsigned char *data, unsigned long offset, unsigned long value)
+{
+    data[offset + 3] = (value >> 24);
+    data[offset + 2] = (value >> 16) % 256;
+    data[offset + 1] = (value >> 8) % 256;
+    data[offset] = (value) % 256;
 
-unsigned long *
+    // return the new offset
+    return offset + 4;
+}
+
+
+
+static unsigned long
+WriteUint64(unsigned char *data, unsigned long offset, unsigned long value)
+{
+    data[offset + 7] = (value >> 56);
+    data[offset + 6] = (value >> 48) % 256;
+    data[offset + 5] = (value >> 40) % 256;
+    data[offset + 4] = (value >> 32) % 256;
+    data[offset + 3] = (value >> 24) % 256;
+    data[offset + 2] = (value >> 16) % 256;
+    data[offset + 1] = (value >> 8) % 256;
+    data[offset] = value % 256;
+
+    // return the new offset
+    return offset + 8;
+}
+
+
+
+unsigned char *
 compresso::Compress(unsigned long *data, long res[3], long steps[3])
 {
     row_size = res[RN_X];
@@ -408,51 +439,66 @@ compresso::Compress(unsigned long *data, long res[3], long steps[3])
     // get the locations
     std::vector<unsigned long> *locations = EncodeIndeterminateLocations(boundaries, data, res);
 
-    // create the output file
-    char output_filename[4096];
-    sprintf(output_filename, "output.b2c");
-
-    FILE *fp = fopen(output_filename, "wb");
-    if (!fp) { fprintf(stderr, "Failed to write to %s\n", output_filename); return 0; }
-
-    // write the header
+    // create an array of bytes
+    unsigned short header_size = 11;
     unsigned long ids_size = ids->size();
     unsigned long values_size = values->size();
+    unsigned long locations_size = locations->size();
     /* TODO fix this */
     unsigned long byte_size = 4;
-    unsigned long locations_size = locations->size();
+
+    // count the number of output uint64 bytes
+    unsigned long nuint64_bytes = (header_size + ids_size + values_size + locations_size) * 8;
+    unsigned long nuint32_bytes = nwindows * 4;
+
+    // get the total number of bytes
+    unsigned long nbytes = nuint64_bytes + nuint32_bytes;
+    
+    // create the compressed data output
+    unsigned char *compressed_data = new unsigned char[nbytes];
+    
+    // counter for the byte offset
+    unsigned long offset = 0;
 
     // write the header
-    fwrite(res, sizeof(long), 3, fp);
-    fwrite(&ids_size, sizeof(unsigned long), 1, fp);
-    fwrite(&values_size, sizeof(unsigned long), 1, fp);
-    fwrite(&byte_size, sizeof(unsigned long), 1, fp);
-    fwrite(&locations_size, sizeof(unsigned long), 1, fp);
-    fwrite(steps, sizeof(unsigned long), 3, fp);
+    offset = WriteUint64(compressed_data, offset, nbytes);
+    offset = WriteUint64(compressed_data, offset, res[RN_Z]);
+    offset = WriteUint64(compressed_data, offset, res[RN_Y]);
+    offset = WriteUint64(compressed_data, offset, res[RN_X]);
+    offset = WriteUint64(compressed_data, offset, ids_size);
+    offset = WriteUint64(compressed_data, offset, values_size);
+    offset = WriteUint64(compressed_data, offset, byte_size);
+    offset = WriteUint64(compressed_data, offset, locations_size);
+    offset = WriteUint64(compressed_data, offset, steps[RN_Z]);
+    offset = WriteUint64(compressed_data, offset, steps[RN_Y]);
+    offset = WriteUint64(compressed_data, offset, steps[RN_X]);
 
     unsigned int *contracted_data = new unsigned int[nwindows];
     for (long iv = 0; iv < nwindows; ++iv) {
         contracted_data[iv] = (unsigned int)boundary_data[iv];
     }
+    // write the id values
+    for (unsigned long iv = 0; iv < ids_size; ++iv) {
+        offset = WriteUint64(compressed_data, offset, (*ids)[iv]);
+    }
+    for (unsigned long iv = 0; iv < values_size; ++iv) {
+        offset = WriteUint64(compressed_data, offset, (*values)[iv]);
+    }
+    for (unsigned long iv = 0; iv < locations_size; ++iv) {
+        offset = WriteUint64(compressed_data, offset, (*locations)[iv]);
+    }
+    for (long iv = 0; iv < nwindows; ++iv) {
+        offset = WriteUint32(compressed_data, offset, contracted_data[iv]);
+    }
+    delete[] contracted_data;
+    delete[] boundaries;
+    delete[] components;
+    delete values;
+    delete locations;
+    delete ids;
+    delete[] boundary_data;
 
-    // write all of the ids
-    fwrite(&((*ids)[0]), sizeof(unsigned long), ids_size, fp);
-    fwrite(&((*values)[0]), sizeof(unsigned long), values_size, fp);
-    fwrite(&((*locations)[0]), sizeof(unsigned long), locations_size, fp);
-    fwrite(contracted_data, sizeof(unsigned int), nwindows, fp);
-
-    // close the file
-    fclose(fp);
-
-    FILE *boundary_fp = fopen("boundaries", "wb");
-    fwrite(boundaries, sizeof(bool), grid_size, boundary_fp);
-    fclose(boundary_fp);
-
-    FILE *components_fp = fopen("components", "wb");
-    fwrite(components, sizeof(unsigned long), grid_size, components_fp);
-    fclose(components_fp);
-
-    return NULL;
+    return compressed_data;
 }
 
 
