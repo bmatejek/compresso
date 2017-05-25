@@ -29,10 +29,12 @@ class compresso(object):
         cdef long *cpp_steps = [steps[0], steps[1], steps[2]]
         cdef unsigned char *cpp_compressed_data = Compress(&(cpp_data[0,0,0]), cpp_resolution, cpp_steps)
 
+        # convert the first 8 bytes to one unsigned long
         length = 0
         for i in range(8):
             length += ord(cpp_compressed_data[i]) * (2 ** (8 * i))
 
+        # convert the c++ array to a numpy array
         cdef unsigned char[:] tmp_compressed_data = <unsigned char[:length]> cpp_compressed_data
         compressed_data = (np.asarray(tmp_compressed_data))[8:]
 
