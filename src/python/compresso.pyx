@@ -3,7 +3,6 @@ cimport numpy as np
 import numpy as np
 import ctypes
 import os.path
-import h5py
 
 # import c++ functions
 cdef extern from "../c++/compresso.h" namespace "compresso":
@@ -17,7 +16,7 @@ class compresso(object):
         return 'Compresso'
 
     @staticmethod
-    def Compress(data, steps):
+    def compress(data, steps):
         # get the shape 
         resolution = data.shape
         
@@ -32,14 +31,14 @@ class compresso(object):
         # convert the first 8 bytes to one unsigned long
         length = 0
         for i in range(8):
-            length += ord(cpp_compressed_data[i]) * (2 ** (8 * i))
+            length += (cpp_compressed_data[i]) * (2 ** (8 * i))
 
         # convert the c++ array to a numpy array
         cdef unsigned char[:] tmp_compressed_data = <unsigned char[:length]> cpp_compressed_data
         compressed_data = (np.asarray(tmp_compressed_data))[8:]
-
+        
         return compressed_data
 
     @staticmethod
-    def Decompress(data):
+    def decompress(data):
         return 0
