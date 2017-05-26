@@ -454,18 +454,23 @@ compresso::Compress(unsigned long *data, long res[3], long steps[3])
 
     // get the connected components
     unsigned long *components = ConnectedComponents(boundaries, res);
+    if (!components) return NULL;
 
     // get the ids
     std::vector<unsigned long> *ids = IDMapping(components, data, res);
+    if (!ids) return NULL;
 
     // encode the boundary data
     unsigned long *boundary_data = EncodeBoundaries(boundaries, res, steps);
+    if (!boundary_data) return NULL;
 
     // get the values from the boundary data
     std::vector<unsigned long> *values = ValueMapping(boundary_data, nwindows);
+    if (!values) return NULL;
 
     // get the locations
     std::vector<unsigned long> *locations = EncodeIndeterminateLocations(boundaries, data, res);
+    if (!locations) return NULL;
 
     // create an array of bytes
     unsigned short header_size = 11;
@@ -484,7 +489,8 @@ compresso::Compress(unsigned long *data, long res[3], long steps[3])
     
     // create the compressed data output
     unsigned char *compressed_data = new unsigned char[nbytes];
-    
+    if (!compressed_data) return NULL;
+
     // counter for the byte offset
     unsigned long offset = 0;
 
@@ -502,8 +508,10 @@ compresso::Compress(unsigned long *data, long res[3], long steps[3])
     offset = WriteUint64(compressed_data, offset, steps[RN_X]);
 
     unsigned int *contracted_data = new unsigned int[nwindows];
+    if (!contracted_data) return NULL;
     for (long iv = 0; iv < nwindows; ++iv)
-        contracted_data[iv] = (unsigned int)boundary_data[iv];
+        contracted_data[iv] = (unsigned int)boundary_data[iv];    
+
     // write the id values
     for (unsigned long iv = 0; iv < ids_size; ++iv)
         offset = WriteUint64(compressed_data, offset, (*ids)[iv]);
@@ -679,8 +687,11 @@ compresso::Decompress(unsigned char *compressed_data)
 
     // allocate memory for all arrays
     std::vector<unsigned long> *ids = new std::vector<unsigned long>();
+    if (!ids) return NULL;
     std::vector<unsigned long> *values = new std::vector<unsigned long>();
+    if (!values) return NULL;
     std::vector<unsigned long> *locations = new std::vector<unsigned long>();
+    if (!locations) return NULL;
     unsigned long *boundary_data = new unsigned long[nwindows];    
 
     for (unsigned long iv = 0; iv < ids_size; ++iv)
@@ -695,12 +706,15 @@ compresso::Decompress(unsigned char *compressed_data)
 
     // get the boundaries from the data
     bool *boundaries = DecodeBoundaries(boundary_data, values, res, steps);
+    if (!boundaries) return NULL;
 
     // get the connected components
     unsigned long *components = ConnectedComponents(boundaries, res);
+    if (!components) return NULL;
 
     // decompress the data
     unsigned long *decompressed_data = IDReverseMapping(components, ids, res);
+    if (!decompressed_data) return NULL;
 
     // decode the final indeterminate locations
     DecodeIndeterminateLocations(boundaries, decompressed_data, locations, res);
