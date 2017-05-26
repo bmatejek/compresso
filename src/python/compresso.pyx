@@ -2,12 +2,11 @@ cimport cython
 cimport numpy as np
 import numpy as np
 import ctypes
-import os.path
 
 # import c++ functions
 cdef extern from "../c++/compresso.h" namespace "compresso":
     unsigned char *Compress(unsigned long *data, long res[3], long steps[3])
-    unsigned long *Decompress(unsigned long *compressed_data)
+    unsigned long *Decompress(unsigned char *compressed_data)
 
 
 class compresso(object):
@@ -41,4 +40,18 @@ class compresso(object):
 
     @staticmethod
     def decompress(data):
-        return 0
+        # get the resolution
+        (zres, yres, xres) = (0, 0, 0)
+        for i in range(8):
+            zres += (data[i]) * (2 ** (8 * i))
+            yres += (data[i + 8]) * (2 ** (8 * i))
+            xres += (data[i + 16]) * (2 ** (8 * i))
+
+        # convert the data to c++ array
+        cdef np.ndarray[unsigned char, ndim=1, mode='c'] cpp_data
+        cpp_data = np.ascontiguousarray(data, dtype=ctypes.c_uint8)
+        cdef unsigned long *cpp_decompressed_data = Decompress(&(cpp_data[0]))
+        cdef unsigned long[:] tmp_decompressed_data = <unsigned long[:zres*yres*xres]> cpp_decompressed_data
+        decompressed_data = np.reshape(np.asarray(tmp_decompressed_data), (zres, yres, xres))
+
+        return decompressed_data

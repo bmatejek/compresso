@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include <unordered_map>
 #include <math.h>
 #include <stdlib.h>
@@ -259,7 +257,7 @@ EncodeBoundaries(bool *boundaries, long res[3], long steps[3])
     // determine the number of bloxks in each direction
     long nblocks[3];
     for (int dim = 0; dim <= 2; ++dim) {
-        nblocks[dim] = (int) (ceil((double)res[dim] / steps[dim]) + 0.5);
+        nblocks[dim] = (long) (ceil((double)res[dim] / steps[dim]) + 0.5);
     }
     long nwindows = nblocks[RN_Z] * nblocks[RN_Y] * nblocks[RN_X];
 
@@ -341,10 +339,11 @@ EncodeIndeterminateLocations(bool *boundaries, unsigned long *data, long res[3])
 {
     std::vector<unsigned long> *locations = new std::vector<unsigned long>();
 
-    long iv = 0; 
     for (long iz = 0; iz < res[RN_Z]; ++iz) {
         for (long iy = 0; iy < res[RN_Y]; ++iy) {
-            for (long ix = 0; ix < res[RN_X]; ++ix, ++iv) {
+            for (long ix = 0; ix < res[RN_X]; ++ix) {
+                long iv = IndicesToIndex(ix, iy, iz);
+
                 if (!boundaries[iv]) continue;
                 else if (iy > 0 && !boundaries[IndicesToIndex(ix, iy - 1, iz)]) continue;
                 else if (ix > 0 && !boundaries[IndicesToIndex(ix - 1, iy, iz)]) continue;
@@ -406,6 +405,35 @@ WriteUint64(unsigned char *data, unsigned long offset, unsigned long value)
 
 
 
+static unsigned int
+ReadUint32(unsigned char *data, unsigned long &offset)
+{
+    unsigned int value = 0;
+    for (int iv = 0; iv < 4; ++iv) 
+        value += data[offset + iv] << (8 * iv);
+
+    offset += 4;
+
+    return value;
+}
+
+
+
+static unsigned long
+ReadUint64(unsigned char *data, unsigned long &offset)
+{
+    unsigned long value = 0;
+    for (int iv = 0; iv < 8; ++iv)
+        value += ((unsigned long)data[offset + iv]) << (8 * iv);
+
+    offset += 8;
+
+    return value;
+}
+
+
+
+
 unsigned char *
 compresso::Compress(unsigned long *data, long res[3], long steps[3])
 {
@@ -416,7 +444,7 @@ compresso::Compress(unsigned long *data, long res[3], long steps[3])
     // determine the number of bloxks in each direction
     long nblocks[3];
     for (int dim = 0; dim <= 2; ++dim) {
-        nblocks[dim] = (int) (ceil((double)res[dim] / steps[dim]) + 0.5);
+        nblocks[dim] = (long) (ceil((double)res[dim] / steps[dim]) + 0.5);
     }
     long nwindows = nblocks[RN_Z] * nblocks[RN_Y] * nblocks[RN_X];
 
@@ -474,22 +502,18 @@ compresso::Compress(unsigned long *data, long res[3], long steps[3])
     offset = WriteUint64(compressed_data, offset, steps[RN_X]);
 
     unsigned int *contracted_data = new unsigned int[nwindows];
-    for (long iv = 0; iv < nwindows; ++iv) {
+    for (long iv = 0; iv < nwindows; ++iv)
         contracted_data[iv] = (unsigned int)boundary_data[iv];
-    }
     // write the id values
-    for (unsigned long iv = 0; iv < ids_size; ++iv) {
+    for (unsigned long iv = 0; iv < ids_size; ++iv)
         offset = WriteUint64(compressed_data, offset, (*ids)[iv]);
-    }
-    for (unsigned long iv = 0; iv < values_size; ++iv) {
+    for (unsigned long iv = 0; iv < values_size; ++iv)
         offset = WriteUint64(compressed_data, offset, (*values)[iv]);
-    }
-    for (unsigned long iv = 0; iv < locations_size; ++iv) {
+    for (unsigned long iv = 0; iv < locations_size; ++iv)
         offset = WriteUint64(compressed_data, offset, (*locations)[iv]);
-    }
-    for (long iv = 0; iv < nwindows; ++iv) {
+    for (long iv = 0; iv < nwindows; ++iv)
         offset = WriteUint32(compressed_data, offset, contracted_data[iv]);
-    }
+
     delete[] contracted_data;
     delete[] boundaries;
     delete[] components;
@@ -503,47 +527,192 @@ compresso::Compress(unsigned long *data, long res[3], long steps[3])
 
 
 
-/*static int ReadH5Data(std::string filename)
-{
+/////////////////////////////////
+//// DECOMPRESSION ALGORITHM ////
+/////////////////////////////////
 
+static bool *
+DecodeBoundaries(unsigned long *boundary_data, std::vector<unsigned long> *values, long res[3], long steps[3])
+{
+    // determine the number of bloxks in each direction
+    long nblocks[3];
+    for (int dim = 0; dim <= 2; ++dim) {
+        nblocks[dim] = (long) (ceil((double)res[dim] / steps[dim]) + 0.5);
+    }
+
+    bool *boundaries = new bool[grid_size];
+    for (long iv = 0; iv < grid_size; ++iv)
+        boundaries[iv] = false;
+
+    for (long iz = 0; iz < res[RN_Z]; ++iz) {
+        for (long iy = 0; iy < res[RN_Y]; ++iy) {
+            for (long ix = 0; ix < res[RN_X]; ++ix) {
+                long iv = IndicesToIndex(ix, iy, iz);
+
+                // find the block from the index
+                long zblock = iz / steps[RN_Z];
+                long yblock = iy / steps[RN_Y];
+                long xblock = ix / steps[RN_X];
+
+                // find the offset within the block
+                long zoffset = iz % steps[RN_Z];
+                long yoffset = iy % steps[RN_Y];
+                long xoffset = ix % steps[RN_X];
+
+                long block = zblock * (nblocks[RN_Y] * nblocks[RN_X]) + yblock * nblocks[RN_X] + xblock;
+                long offset = zoffset * (steps[RN_Y] * steps[RN_X]) + yoffset * steps[RN_X] + xoffset;
+
+                unsigned long value = (*values)[boundary_data[block]];
+                if ((value >> offset) % 2) boundaries[iv] = true;
+            }
+        }
+    }
+
+    return boundaries;
 }
 
 
 
-static int ReadData(std::string filename)
+static unsigned long *
+IDReverseMapping(unsigned long *components, std::vector<unsigned long> *ids, long res[3])
 {
-    // get file extension
-    const char *extp = strrchr(filename.c_str(), '.');
+    unsigned long *decompressed_data = new unsigned long[grid_size];
+    for (long iv = 0; iv < grid_size; ++iv)
+        decompressed_data[iv] = 0;
 
-    if (!strcmp(extp, ".h5")) return ReadH5Data(filename);
-    else { fprintf(stderr, "Unrecognized extension: %s\n", extp); return 0; }
+    int ids_index = 0;
+    for (long iz = 0; iz < res[RN_Z]; ++iz) {
+        // create mapping (not memory efficient but FAST!!)
+        // number of components is guaranteed to be less than ids->size()
+        unsigned long *mapping = new unsigned long[ids->size()];
+        for (unsigned long iv = 0; iv < ids->size(); ++iv)
+            mapping[iv] = 0;
+
+        for (long iy = 0; iy < res[RN_Y]; ++iy) {
+            for (long ix = 0; ix < res[RN_X]; ++ix) {
+                long iv = IndicesToIndex(ix, iy, iz);
+
+                if (!mapping[components[iv]]) {
+                    mapping[components[iv]] = (*ids)[ids_index];
+                    ids_index++;
+                }
+
+                decompressed_data[iv] = mapping[components[iv]] - 1;
+            }
+        }
+    }
+
+    return decompressed_data;
 }
+
+
+
+static void
+DecodeIndeterminateLocations(bool *boundaries, unsigned long *decompressed_data, std::vector<unsigned long> *locations, long res[3])
+{
+    long index = 0;
+
+    // go through all voxels
+    for (long iz = 0; iz < res[RN_Z]; ++iz) {
+        for (long iy = 0; iy < res[RN_Y]; ++iy) {
+            for (long ix = 0; ix < res[RN_X]; ++ix) {
+                long iv = IndicesToIndex(ix, iy, iz);
+                
+                // get the north and west neighbors
+                long north = IndicesToIndex(ix - 1, iy, iz);
+                long west = IndicesToIndex(ix, iy - 1, iz);
+
+                if (!boundaries[iv]) continue;
+                else if (ix > 0 && !boundaries[north]) {
+                    decompressed_data[iv] = decompressed_data[north];
+                }
+                else if (iy > 0 && !boundaries[west]) {
+                    decompressed_data[iv] = decompressed_data[west];
+                }
+                else {
+                    unsigned long offset = (*locations)[index];
+                    if (offset == 0) decompressed_data[iv] = decompressed_data[IndicesToIndex(ix - 1, iy, iz)];
+                    else if (offset == 1) decompressed_data[iv] = decompressed_data[IndicesToIndex(ix + 1, iy, iz)];
+                    else if (offset == 2) decompressed_data[iv] = decompressed_data[IndicesToIndex(ix, iy - 1, iz)];
+                    else if (offset == 3) decompressed_data[iv] = decompressed_data[IndicesToIndex(ix, iy + 1, iz)];
+                    else if (offset == 4) decompressed_data[iv] = decompressed_data[IndicesToIndex(ix, iy, iz - 1)];
+                    else if (offset == 5) decompressed_data[iv] = decompressed_data[IndicesToIndex(ix, iy, iz + 1)];
+                    else decompressed_data[iv] = offset - 6;
+                    index++;
+                }
+            }
+        }
+    }
+}
+
 
 
 unsigned long *
-compresso::compress(std::string filename) 
+compresso::Decompress(unsigned char *compressed_data)
 {
-    if (!ReadData(filename)) { fprintf(stderr, "Failed to read %s\n", filename.c_str()); return 0; }
+    // extract the header
+    unsigned long offset = 0;
+    long res[3];
+    long steps[3];
+    res[RN_Z] = ReadUint64(compressed_data, offset);
+    res[RN_Y] = ReadUint64(compressed_data, offset);
+    res[RN_X] = ReadUint64(compressed_data, offset);
+    unsigned long ids_size = ReadUint64(compressed_data, offset);
+    unsigned long values_size = ReadUint64(compressed_data, offset);
+    unsigned long byte_size = ReadUint64(compressed_data, offset);
+    unsigned long locations_size = ReadUint64(compressed_data, offset);
+    steps[RN_Z] = ReadUint64(compressed_data, offset);
+    steps[RN_Y] = ReadUint64(compressed_data, offset);
+    steps[RN_X] = ReadUint64(compressed_data, offset);
 
-    printf("Compresso!\n");
+    // set global variables
+    row_size = res[RN_X];
+    sheet_size = res[RN_Y] * res[RN_X];
+    grid_size = res[RN_Z] * res[RN_Y] * res[RN_X];
 
-    return NULL;
-}
-
-
-
-int main(int argc, char **argv)
-{
-    if (argc != 2) {
-        fprintf(stderr, "Need to supply one filename\n");
-        return -1;
+    // determine the number of blocks in the z, y, and x dimensions
+    long nblocks[3];
+    for (int dim = 0; dim <= 2; ++dim) {
+        nblocks[dim] = (long) (ceil((double)res[dim] / steps[dim]) + 0.5);
     }
+    long nwindows = nblocks[RN_Z] * nblocks[RN_Y] * nblocks[RN_X];
 
-    // get the filename
-    std::string filename = argv[1];
+    // allocate memory for all arrays
+    std::vector<unsigned long> *ids = new std::vector<unsigned long>();
+    std::vector<unsigned long> *values = new std::vector<unsigned long>();
+    std::vector<unsigned long> *locations = new std::vector<unsigned long>();
+    unsigned long *boundary_data = new unsigned long[nwindows];    
 
-    unsigned long *compressed_data = compresso::compress(filename);
+    for (unsigned long iv = 0; iv < ids_size; ++iv)
+        ids->push_back(ReadUint64(compressed_data, offset));
+    for (unsigned long iv = 0; iv < values_size; ++iv)
+        values->push_back(ReadUint64(compressed_data, offset));
+    for (unsigned long iv = 0; iv < locations_size; ++iv)
+        locations->push_back(ReadUint64(compressed_data, offset));
+    /* TODO allow different data types */
+    for (long iv = 0; iv < nwindows; ++iv)
+        boundary_data[iv] = ReadUint32(compressed_data, offset);
 
-    // return success
-    return 0;
-}*/
+    // get the boundaries from the data
+    bool *boundaries = DecodeBoundaries(boundary_data, values, res, steps);
+
+    // get the connected components
+    unsigned long *components = ConnectedComponents(boundaries, res);
+
+    // decompress the data
+    unsigned long *decompressed_data = IDReverseMapping(components, ids, res);
+
+    // decode the final indeterminate locations
+    DecodeIndeterminateLocations(boundaries, decompressed_data, locations, res);
+
+    // free memory
+    delete[] boundaries;
+    delete[] components;
+    delete[] boundary_data;
+    delete ids;
+    delete values;
+    delete locations;
+
+    return decompressed_data;
+
+}
