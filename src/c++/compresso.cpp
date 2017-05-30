@@ -477,6 +477,9 @@ compresso::Compress(unsigned long *data, long res[3], long steps[3])
     unsigned long ids_size = ids->size();
     unsigned long values_size = values->size();
     unsigned long locations_size = locations->size();
+
+    printf("%d %d %d\n", ids_size, values_size, locations_size);
+
     /* TODO fix this */
     unsigned long byte_size = 4;
 

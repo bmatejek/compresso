@@ -35,7 +35,7 @@ class compresso(object):
         # convert the c++ array to a numpy array
         cdef unsigned char[:] tmp_compressed_data = <unsigned char[:length]> cpp_compressed_data
         compressed_data = (np.asarray(tmp_compressed_data))[8:]
-        
+
         return compressed_data
 
     @staticmethod

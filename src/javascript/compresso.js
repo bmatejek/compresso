@@ -281,19 +281,16 @@ COMPRESSO.ValueMapping = function(boundary_data_low, boundary_data_high, nwindow
       counter++;
     }
   }
-  console.log(nwindows);
-  console.log(counter);
-  console.log(values.length);
 
   // sort the values
   values.sort(function(a, b) {
-    /* sort by the high number first */
+    // sort by the high number first
     if (a[0] < b[0]) return -1;
     else if (a[0] > b[0]) return 1;
-    /* sort by low number */
+    // sort by low number 
     else if (a[1] < b[1]) return -1; 
     else if (a[1] > b[1]) return 1;
-    /* values are equal */
+    // values are equal 
     else return 0;
   });
 
@@ -390,10 +387,6 @@ COMPRESSO.Compress = function(data, zres, yres, xres, zstep, ystep, xstep)
   // get the indeterminate locations
   var locations = COMPRESSO.EncodeIndeterminateLocations(boundaries, data, zres, yres, xres);
 
-  console.log(ids.length);
-  console.log(values.length);
-  console.log(locations.length);
-
   return components;
 }
 
@@ -431,9 +424,9 @@ COMPRESSO.DecodeBoundaries = function(boundary_data, values_high, values_low, zr
         var iv = IndicesToIndex(ix, iy, iz);
 
         // get the block for this voxel
-        var zblock = parseInt(iz / zstep, 10);
-        var yblock = parseInt(iy / ystep, 10);
-        var xblock = parseInt(ix / xstep, 10);
+        var zblock = ~~(iz / zstep);
+        var yblock = ~~(iy / ystep);
+        var xblock = ~~(ix / xstep);
 
         // find the offset
         var zoffset = iz % zstep;
@@ -566,16 +559,12 @@ COMPRESSO.Decompress = function(buffer) {
     header_low[iv] = bytes[2 * iv];
     header_high[iv] = bytes[2 * iv + 1];
   }
-  console.log(header_low);
-  console.log(header_high);
 
   // get the resolution of the original image
   var zres = header_high[0] * Math.pow(2, 32) + header_low[0];
   var yres = header_high[1] * Math.pow(2, 32) + header_low[1];
   var xres = header_high[2] * Math.pow(2, 32) + header_low[2];
-  console.log(zres);
-  console.log(yres);
-  console.log(xres);
+
   // get the sizes of each array
   var ids_size = header_high[3] * Math.pow(2, 32) + header_low[3];
   var values_size = header_high[4] * Math.pow(2, 32) + header_low[4];
