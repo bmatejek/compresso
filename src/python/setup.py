@@ -9,8 +9,8 @@ extensions = [
     Extension(
         'compresso',
         include_dirs=[np.get_include(), '../c++/'],
-        sources=['compresso.pyx', '../c++/compresso.cpp'],
-        extra_compile_args=['-O4', '-std=c++11'],
+        sources=['compresso.pyx'],
+        extra_compile_args=['-O4', '-std=c++11', '-C'],
         language='c++'
     )
 ]
