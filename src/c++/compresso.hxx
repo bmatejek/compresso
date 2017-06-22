@@ -446,6 +446,7 @@ namespace Compresso {
                 current_run = 0;
             }
         }
+        if (current_run > maximum_zero_run) maximum_zero_run = current_run;
         // multiply by two to pad for run length encoding
         maximum_zero_run *= 2;
         if (maximum_zero_run > maximum_boundary_data) maximum_boundary_data = maximum_zero_run;
@@ -485,6 +486,7 @@ namespace Compresso {
         // add in all locations
         for (unsigned long iv = 0; iv < locations.size(); ++iv)
             AppendValue(compressed_data, locations[iv], bytes_per_location);
+        
         // add in all boundary data - apply run length encoding
         unsigned long current_zero_run = 0;
         for (long iv = 0; iv < nwindows; ++iv) {
@@ -495,6 +497,7 @@ namespace Compresso {
                 current_zero_run = 0;
             }
         }
+
         // have to add in the last zero run
         if (current_zero_run) AppendValue(compressed_data, 2 * current_zero_run, bytes_per_data);
 
@@ -581,14 +584,13 @@ namespace Compresso {
         for (long iz = 0; iz < res[RN_Z]; ++iz) {
             // create mapping (not memory efficient but FAST!!)
             // number of components is guaranteed to be less than ids->size()
-            unsigned long *mapping = new unsigned long[ids.size()];
-            for (unsigned long iv = 0; iv < ids.size(); ++iv)
+            unsigned long *mapping = new unsigned long[ids.size() + 1];
+            for (unsigned long iv = 0; iv < ids.size() + 1; ++iv)
                 mapping[iv] = 0;
 
             for (long iy = 0; iy < res[RN_Y]; ++iy) {
                 for (long ix = 0; ix < res[RN_X]; ++ix) {
                     long iv = IndicesToIndex(ix, iy, iz);
-
                     if (!mapping[components[iv]]) {
                         mapping[components[iv]] = ids[ids_index];
                         ids_index++;
@@ -682,7 +684,6 @@ namespace Compresso {
         std::vector<unsigned long> values = std::vector<unsigned long>();
         std::vector<unsigned long> locations = std::vector<unsigned long>();
         unsigned long *boundary_data = new unsigned long[nwindows];
-        
         for (unsigned long iv = 0; iv < nvalues; ++iv)
             values.push_back(ExtractValue(compressed_data, offset, bytes_per_window));
         for (unsigned long iv = 0; iv < nids; ++iv)
@@ -696,6 +697,7 @@ namespace Compresso {
             unsigned long window_value = ExtractValue(compressed_data, offset, bytes_per_data);
             if (window_value % 2) {
                 window_value = window_value / 2;
+                assert (iv < nwindows);
                 boundary_data[iv] = window_value;
                 iv++;
             }
@@ -706,6 +708,7 @@ namespace Compresso {
                 }
             }
         }
+        
         // get the boundaries from the data
         std::clock_t start_time = std::clock();
         bool *boundaries = DecodeBoundaries(boundary_data, values, res, steps);
@@ -734,9 +737,6 @@ namespace Compresso {
         start_time = std::clock();
         DecodeIndeterminateLocations(boundaries, decompressed_data, locations, res);
         printf("Decode locations: %lf\n", (double)(std::clock() - start_time) / CLOCKS_PER_SEC);
-
-        // free memory
-        delete[] boundaries;
 
         // return the decompressed data
         return decompressed_data;
