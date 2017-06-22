@@ -396,6 +396,9 @@ namespace Compresso {
         std::vector<unsigned long> ids = std::vector<unsigned long>();
         IDMapping(components, data, ids, res);
 
+        // free memory
+        delete[] components;
+
         // encode the boundary data
         unsigned long *boundary_data = EncodeBoundaries(boundaries, res, steps);
         if (!boundary_data) return NULL;
@@ -490,7 +493,6 @@ namespace Compresso {
 
         // free memory
         delete[] boundaries;
-        delete[] components;
         delete[] boundary_data;
 
         return compressed_pointer;
@@ -695,6 +697,9 @@ namespace Compresso {
         bool *boundaries = DecodeBoundaries(boundary_data, values, res, steps);
         if (!boundaries) return NULL;
 
+        // free memory 
+        delete[] boundary_data;
+
         // get the connected components
         unsigned long *components = ConnectedComponents(boundaries, res);
         if (!components) return NULL;
@@ -703,14 +708,16 @@ namespace Compresso {
         Type *decompressed_data = IDReverseMapping<Type>(components, ids, res);
         if (!decompressed_data) return NULL;
 
+        // free memory
+        delete[] components;
+
         // decode the final indeterminate locations
         DecodeIndeterminateLocations(boundaries, decompressed_data, locations, res);
 
         // free memory
         delete[] boundaries;
-        delete[] components;
-        delete[] boundary_data;
 
+        // return the decompressed data
         return decompressed_data;
     }
 };
